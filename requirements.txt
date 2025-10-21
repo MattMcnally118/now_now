@@ -1,0 +1,6 @@
+streamlit>=1.33,<2
+pandas>=2.0,<3
+folium>=0.15,<0.18
+streamlit-folium>=0.20,<0.22
+pillow>=10,<11
+plotly>=5.20,<6
