@@ -1,6 +1,5 @@
 # ignoring following files
 *.txt
-data/
 .DS_Store
 .python-version
 
