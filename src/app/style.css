@@ -5,7 +5,7 @@
 :root{
   --peach:  #FFBD59;   /* main accent */
   --safari: #C09153;   /* sidebar bg */
-  --blue:   #044EFF;   /* link/heading accent */
+  --blue:   #044EFF;   /* link accent */
   --text:   #2F2F2F;
   --card:   #FFFFFF;
   --pill:   #FFF4E0;
@@ -19,15 +19,7 @@ html, body{
   color: var(--text);
   background: #FAFAFA;
 }
-h1, h2, h3{
-  color: var(--blue);
-  font-weight: 700;
-  line-height: 1.2;
-}
-a{
-  color: var(--blue);
-  text-decoration: none;
-}
+a{ color: var(--blue); text-decoration: none; }
 a:hover{ text-decoration: underline; }
 .center { text-align: center; }
 
@@ -117,8 +109,13 @@ a:hover{ text-decoration: underline; }
   background: var(--safari) !important;
   border-right: 1px solid rgba(0,0,0,.05);
 }
-[data-testid="stSidebar"] *{ color:#fff !important; }
 
+/* Color most text in the sidebar white (NOT buttons) */
+[data-testid="stSidebar"] :where(p,span,li,div, label, h1,h2,h3,h4,h5,h6, a){
+  color:#fff !important;
+}
+
+/* Sidebar brand */
 [data-testid="stSidebar"] .sidebar-brand{
   display:flex; align-items:center; gap:.6rem; margin:.2rem 0 1rem 0;
 }
@@ -129,11 +126,12 @@ a:hover{ text-decoration: underline; }
   font-weight:800; font-size:1.25rem; letter-spacing:.01em; color:#fff;
 }
 
+/* Sidebar nav buttons */
 [data-testid="stSidebar"] .nav-btn{ margin-bottom:.5rem; }
 [data-testid="stSidebar"] .nav-btn .stButton > button{
   width:100%;
   background:transparent;
-  color:#fff;
+  color:#fff !important; /* base is white text */
   border:1px solid rgba(255,255,255,.55);
   border-radius:12px;
   padding:.7rem 1rem;
@@ -142,10 +140,9 @@ a:hover{ text-decoration: underline; }
   transition: transform .15s, box-shadow .15s, background .15s;
 }
 [data-testid="stSidebar"] .nav-active .stButton > button{
-  /* Use peach so it pops against the brown sidebar */
-  background: var(--peach);
-  color:#1f1f1f;
-  border-color: var(--peach);
+  background: var(--peach) !important;   /* active = peach pill */
+  color:#1f1f1f !important;              /* dark text on peach */
+  border-color: var(--peach) !important;
   box-shadow: 0 6px 18px rgba(0,0,0,.18);
 }
 [data-testid="stSidebar"] .nav-btn .stButton > button:hover{
@@ -153,8 +150,14 @@ a:hover{ text-decoration: underline; }
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(0,0,0,.12);
 }
-[data-testid="stSidebar"] .nav-btn .stButton > button:focus{
-  outline:none; box-shadow:0 0 0 3px rgba(4,78,255,.25);
+/* keep focus consistent with active (no red flash) */
+[data-testid="stSidebar"] .nav-btn .stButton > button:focus,
+[data-testid="stSidebar"] .nav-btn .stButton > button:active{
+  background: var(--peach) !important;
+  color:#1f1f1f !important;
+  border-color: var(--peach) !important;
+  outline:none;
+  box-shadow: 0 0 0 3px rgba(255,189,89,.25) !important;
 }
 
 /* ---------- Sightings Map: mode buttons ---------- */
@@ -170,10 +173,19 @@ a:hover{ text-decoration: underline; }
   box-shadow: 0 6px 18px rgba(0,0,0,.12);
 }
 .mode-btn.active .stButton > button{
-  background: var(--peach);
-  color: #1f1f1f;
-  border-color: var(--peach);
+  background: var(--peach) !important;
+  color: #1f1f1f !important;
+  border-color: var(--peach) !important;
   box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
+/* focus/active state matches active (no red) */
+.mode-btn .stButton > button:focus,
+.mode-btn .stButton > button:active{
+  background: var(--peach) !important;
+  color: #1f1f1f !important;
+  border-color: var(--peach) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(255,189,89,.25) !important;
 }
 
 /* ---------- Activity: centered headers + “best” cards ---------- */
@@ -212,3 +224,21 @@ a:hover{ text-decoration: underline; }
 @media (prefers-reduced-motion: reduce){
   *{ animation:none !important; transition:none !important; }
 }
+
+/* ---------- Headings default dark everywhere ---------- */
+h1, h2, h3, h4, h5, h6 {
+  color: #1f1f1f !important;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* ---------- Normalize main-pane button focus/active ---------- */
+.stButton > button:focus,
+.stButton > button:active {
+  color: #1f1f1f !important;
+  background: inherit;  /* keep current background, no flip */
+  border-color: var(--peach) !important;
+  box-shadow: 0 0 0 3px rgba(255,189,89,.28) !important;
+  outline: none !important;
+}
+
