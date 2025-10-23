@@ -1,14 +1,14 @@
 # app.py
 import os
 import base64
+import mimetypes
+from pathlib import Path
 from typing import Optional
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-
-# Networking for geocoding
-import requests
+import requests  # geocoding
 
 # Maps & viz
 import folium
@@ -16,20 +16,29 @@ from folium.plugins import Draw, MarkerCluster, FastMarkerCluster, HeatMap
 from streamlit_folium import st_folium
 import plotly.express as px
 import plotly.graph_objects as go
-from pathlib import Path
-import base64, mimetypes
 
 # ML
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import DBSCAN
+
+# LightGBM (optional) with safe fallback
 try:
-    from lightgbm import LGBMRegressor
+    from lightgbm import LGBMRegressor as _LGBM
     GBM_AVAILABLE = True
 except Exception:
     GBM_AVAILABLE = False
-    from sklearn.ensemble import HistGradientBoostingRegressor as LGBMRegressor
+    from sklearn.ensemble import HistGradientBoostingRegressor as _HGBM
+
+def make_gbm():
+    """Return a GBM-like regressor; uses LightGBM if available, otherwise HistGBR."""
+    if GBM_AVAILABLE:
+        return _LGBM(n_estimators=300, learning_rate=0.05, max_depth=5, random_state=42)
+    else:
+        # HistGradientBoostingRegressor uses max_iter instead of n_estimators
+        return _HGBM(max_iter=300, learning_rate=0.05, max_depth=5, random_state=42)
+
 
 
 # --- Page + CSS (robust loader)
@@ -246,7 +255,7 @@ def train_lgbm(group_df: pd.DataFrame):
         feature_cols.append("temperature_C")
 
     X_train, X_test, y_train, y_test = train_test_split(grid[feature_cols], counts, random_state=42)
-    model = LGBMRegressor(n_estimators=300, learning_rate=0.05, max_depth=5, random_state=42)
+    model = make_gbm()
     model.fit(X_train, y_train)
     pred = model.predict(X_test)
     r2 = r2_score(y_test, pred)
@@ -806,6 +815,85 @@ if mode == "Sightings Map":
     elif st_data and not st_data.get("last_active_drawing"):
         if "all_drawings" in st_data and not st_data["all_drawings"]:
             st.session_state["draw_shape"] = None
+
+# =========================================================
+# ------------------------ ACTIVITY -----------------------
+# =========================================================
+elif mode == "Activity":
+    st.markdown('<h2 class="center" style="margin-bottom:.25rem;">Activity Analysis</h2>', unsafe_allow_html=True)
+    st.markdown("---")
+
+    # Which column names your animal label
+    group_col = "group_name" if "group_name" in df.columns else (
+        "animal_group" if "animal_group" in df.columns else None
+    )
+
+    if not group_col or df[group_col].dropna().empty:
+        st.info("No animal groups found in this dataset.")
+    else:
+        groups = sorted(df[group_col].dropna().astype(str).unique())
+        sel_group = st.selectbox("Choose an animal group", groups, index=0)
+
+        # centered selected animal header
+        st.markdown(f'<h3 class="center">{sel_group}</h3>', unsafe_allow_html=True)
+
+        group_df = df[df[group_col].astype(str) == sel_group]
+        if group_df.empty:
+            st.info("No rows for this group.")
+        elif not have_activity_columns(group_df):
+            st.info("This view needs NDVI and time (hour+month or datetime). Temperature is optional.")
+        else:
+            with st.spinner("Training models…"):
+                bundle = train_lgbm(group_df)
+                gmm, gmm_uses_temp = train_gmm(group_df)
+
+            if bundle is None:
+                st.warning("Not enough data to train the predictive model for this group.")
+            else:
+                best_m, best_h, grid = predict_grid(bundle, group_df)
+
+                # best cards (CSS styled)
+                st.markdown(
+                    f"""
+                    <div class="best-cards">
+                        <div class="best-card month">
+                            <div class="label">Best Month</div>
+                            <div class="value">{best_m}</div>
+                        </div>
+                        <div class="best-card hour">
+                            <div class="label">Best Hour</div>
+                            <div class="value">{best_h:02d}:00</div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                tab1, tab2, tab3 = st.tabs(["24-Hour Clock", "Daily Profile (Model)", "Historical Pattern (GMM)"])
+                with tab1:
+                    st.plotly_chart(
+                        circular_plot(grid.assign(month=grid["month"]), best_m),
+                        use_container_width=True
+                    )
+                with tab2:
+                    st.plotly_chart(
+                        daily_profile_plot(grid.assign(month=grid["month"])),
+                        use_container_width=True
+                    )
+                with tab3:
+                    if gmm:
+                        df_gmm = gmm_activity_curve(gmm, best_m, group_df, gmm_uses_temp)
+                        fig = px.area(
+                            df_gmm, x="hour", y="probability",
+                            title="GMM — Historical Activity Distribution",
+                            labels={"hour": "Hour of Day", "probability": "Relative Likelihood"},
+                            template="plotly_dark"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Not enough data to fit the GMM model.")
+
+
 
 # =========================================================
 # ------------------------- PLANNER -----------------------
