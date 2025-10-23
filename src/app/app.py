@@ -12,10 +12,12 @@ import requests
 
 # Maps & viz
 import folium
-from folium.plugins import Draw, MarkerCluster
+from folium.plugins import Draw, MarkerCluster, FastMarkerCluster, HeatMap
 from streamlit_folium import st_folium
 import plotly.express as px
 import plotly.graph_objects as go
+from pathlib import Path
+import base64, mimetypes
 
 # ML
 from sklearn.model_selection import train_test_split
@@ -30,50 +32,42 @@ except Exception:
     from sklearn.ensemble import HistGradientBoostingRegressor as LGBMRegressor
 
 
-# ==============================
-# Header with logo (if present)
-# ==============================
-logo_base64 = None
-if os.path.exists("logo.png"):
-    with open("logo.png", "rb") as f:
-        logo_base64 = base64.b64encode(f.read()).decode()
-
+# --- Page + CSS (robust loader)
+# Page config first
 st.set_page_config(page_title="NowNow WildFinder", layout="wide")
+
+# Load CSS sitting next to app.py (src/app/style.css)
+from pathlib import Path
+css_path = Path(__file__).parent / "style.css"
+if css_path.exists():
+    st.markdown(f"<style>{css_path.read_text()}</style>", unsafe_allow_html=True)
+else:
+    st.warning(f"Missing CSS at {css_path}")
+
+
+# ==============================
+# App header (logo left, title centered)
+# ==============================
+def _get_header_logo_b64():
+    here = Path(__file__).parent / "assets"
+    for name in ["logo-orange.png", "logo-brown.png", "logo-white.png", "logo.png"]:
+        p = here / name if here.exists() else Path(name)
+        if p.exists():
+            return base64.b64encode(p.read_bytes()).decode()
+    return None
+
+header_logo_b64 = _get_header_logo_b64()
 st.markdown(
     f"""
-    <div style="
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background-color: #c09153;
-        padding: 15px 25px;
-        border-radius: 8px;
-        margin-bottom: 20px;">
-        <h1 style="color: white; font-family: 'Helvetica Neue', sans-serif; font-weight: 600; margin: 0; font-size: 32px;">
-            NowNow WildFinder
-        </h1>
-        {f'<img src="data:image/png;base64,{logo_base64}" width="120" style="border-radius:8px;">' if logo_base64 else ''}
+    <div class="app-header">
+        {f'<img class="app-logo-left" src="data:image/png;base64,{header_logo_b64}" alt="logo">' if header_logo_b64 else ''}
+        <h1 class="app-title">NowNow WildFinder</h1>
+        <div class="app-header-spacer"></div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# ==============================
-# Sidebar styling
-# ==============================
-st.markdown(
-    """
-    <style>
-    [data-testid="stSidebar"] { background-color: #c09153 !important; }
-    [data-testid="stSidebar"] * { color: white !important; }
-    [data-testid="stSidebar"] label { color: white !important; font-weight: 500 !important; }
-    [data-testid="stSidebar"] input, [data-testid="stSidebar"] select {
-        background-color: #f8f5f1 !important; color: #333 !important; border-radius: 6px !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 # ==============================
 # Load CSV (integrated)
@@ -157,18 +151,52 @@ if not os.path.exists(DEFAULT_CSV):
     st.stop()
 
 df = load_and_normalize(DEFAULT_CSV)
-st.sidebar.success(f"Loaded dataset: {DEFAULT_CSV}  •  {len(df)} rows")
 
 # ==============================
-# Sidebar controls (global)
+# Sidebar navigation
 # ==============================
-st.sidebar.title("Explore Wildlife")
-mode = st.sidebar.radio("Select Mode", ["Travel", "Activity", "Performance", "Planner"], index=0)
-start_date = st.sidebar.date_input("Start Date")
-end_date = st.sidebar.date_input("End Date")
+MODES = ["Sightings Map", "Activity", "Planner", "Performance"]
 
-group_list = sorted(df["animal_group"].dropna().unique()) if "animal_group" in df.columns else []
-sel_group = st.sidebar.selectbox("Animal group (for Activity view)", group_list) if group_list else None
+if "mode" not in st.session_state:
+    st.session_state["mode"] = "Sightings Map"
+elif st.session_state["mode"] == "Travel":  # migrate old sessions
+    st.session_state["mode"] = "Sightings Map"
+
+def _set_mode(m: str):
+    st.session_state["mode"] = m
+
+def _get_sidebar_logo_b64(preferred: str | None = None):
+    here = Path(__file__).parent / "assets"
+    candidates = [preferred, "logo-brown.png", "logo-orange.png", "logo-white.png"] if preferred else \
+                 ["logo-brown.png", "logo-orange.png", "logo-white.png"]
+    for name in candidates:
+        p = here / name
+        if p.exists():
+            return base64.b64encode(p.read_bytes()).decode()
+    return None
+
+with st.sidebar:
+    b64 = _get_sidebar_logo_b64(preferred="logo-brown.png")
+    if b64:
+        st.markdown(
+            f"""
+            <div class="sidebar-brand">
+                <img class="sidebar-logo" src="data:image/png;base64,{b64}" alt="Now Now logo" />
+                <div class="sidebar-title">Now Now</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown('<div class="sidebar-brand"><div class="sidebar-title">Now Now</div></div>', unsafe_allow_html=True)
+
+    for m in MODES:
+        active = (st.session_state["mode"] == m)
+        st.markdown(f'<div class="nav-btn {"nav-active" if active else ""}" data-mode="{m}">', unsafe_allow_html=True)
+        st.button(m, key=f"nav_{m}", on_click=_set_mode, args=(m,), use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+mode = st.session_state["mode"]
 
 
 # =========================================================
@@ -300,6 +328,31 @@ def daily_profile_plot(df_pred: pd.DataFrame):
     fig.update_traces(mode="lines+markers")
     fig.update_layout(height=500)
     return fig
+
+# =========================================================
+# ---------------------- MAP HELPERS ----------------------
+# =========================================================
+@st.cache_resource(show_spinner=False)
+def precompute_clusters_global(df_all, eps=0.1, min_samples=10):
+    """
+    Compute DBSCAN clusters ONCE for the full dataset (degree-based).
+    Returns a copy with a 'cluster' column (noise = -1). Cached.
+    """
+    coords = df_all[["lat","lon"]].dropna().to_numpy()
+    out = df_all.copy()
+    out["cluster"] = -1
+    if len(coords) < min_samples:
+        return out
+    db = DBSCAN(eps=eps, min_samples=min_samples).fit(coords)
+    out.loc[df_all[["lat","lon"]].dropna().index, "cluster"] = db.labels_
+    return out
+
+def downsample(df_in: pd.DataFrame, max_points: int = 5000) -> pd.DataFrame:
+    """Sample to a reasonable cap for map rendering."""
+    if len(df_in) <= max_points:
+        return df_in
+    return df_in.sample(max_points, random_state=42)
+
 
 
 # =========================================================
@@ -597,132 +650,162 @@ def train_hotspots_simple(df_subset: pd.DataFrame) -> Optional[pd.DataFrame]:
 
 
 # =========================================================
-# ------------------------ TRAVEL -------------------------
+# --------------------- SIGHTINGS MAP ---------------------
 # =========================================================
-if mode == "Travel":
-    st.subheader("WildFinder Travel View – Dataset")
-    st.write(f"Dates: {start_date} → {end_date}")
+if mode == "Sightings Map":
+    st.markdown('<h2 class="center" style="margin-bottom:.25rem;">Sightings Map</h2>', unsafe_allow_html=True)
     st.markdown("---")
 
-    view_option = st.sidebar.radio("View as:", ["Animal List", "Interactive Map"], index=1)
+    # --- Mode buttons ---
+    if "sightings_render_mode" not in st.session_state:
+        st.session_state["sightings_render_mode"] = "Heatmap"
 
-    # Simple cards (placeholder)
-    cards_data = [
-        {"name": "Cheetah group", "likelihood": 0.85, "active_months": "Year-round",
-         "image": "https://upload.wikimedia.org/wikipedia/commons/4/4e/African_Elephant.jpg"},
-        {"name": "Lion group", "likelihood": 0.78, "active_months": "Year-round",
-         "image": "https://upload.wikimedia.org/wikipedia/commons/1/1b/Lion_au_repos_parc_pendjari.jpg"},
-        {"name": "Zebra group", "likelihood": 0.90, "active_months": "Year-round",
-         "image": "https://upload.wikimedia.org/wikipedia/commons/2/2d/Plains_Zebra_Equus_quagga_cropped.jpg"},
-    ]
-    cards_df = pd.DataFrame(cards_data)
+    def mode_button(label: str, mode_name: str):
+        active = st.session_state["sightings_render_mode"] == mode_name
+        st.markdown(f'<div class="mode-btn {"active" if active else ""}">', unsafe_allow_html=True)
+        clicked = st.button(label, key=f"mode_{mode_name}", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        if clicked:
+            st.session_state["sightings_render_mode"] = mode_name
 
-    if view_option == "Animal List":
-        for _, row in cards_df.iterrows():
-            st.markdown(
-                f"""
-                <div style="display:flex; background:#f9f9f9; border-radius:12px; padding:12px;
-                box-shadow:2px 2px 12px rgba(0,0,0,0.1); margin-bottom:15px; align-items:center;">
-                    <img src="{row['image']}" width="180" style="border-radius:10px; margin-right:15px;">
-                    <div style="flex:1; font-family:sans-serif;">
-                        <h3 style="margin:0; color:#264653;">{row['name']}</h3>
-                        <p style="margin:4px 0; font-size:14px;"><strong>Likelihood of Sighting:</strong> {row['likelihood']*100:.0f}%</p>
-                        <p style="margin:2px 0; font-size:14px;"><strong>Active Months:</strong> {row['active_months']}</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    c1, c2, c3 = st.columns(3)
+    with c1: mode_button("Heatmap", "Heatmap")
+    with c2: mode_button("Clustered", "Clustered")
+    with c3: mode_button("Markers", "Markers")
 
+    render_mode = st.session_state["sightings_render_mode"]
+    st.markdown(f'<h4 class="center" style="margin:.25rem 0 .5rem;">{render_mode}</h4>', unsafe_allow_html=True)
+
+    # --- Persist + filter by drawn polygon ---
+    if "draw_shape" not in st.session_state:
+        st.session_state["draw_shape"] = None
+    shape = st.session_state["draw_shape"]
+
+    visible = df.copy()
+    if shape and shape.get("type") == "Polygon":
+        coords = shape["coordinates"][0]
+        lats = [pt[1] for pt in coords]; lons = [pt[0] for pt in coords]
+        south, north = min(lats), max(lats); west, east = min(lons), max(lons)
+        visible = visible[
+            (visible["lat"] >= south) & (visible["lat"] <= north) &
+            (visible["lon"] >= west)  & (visible["lon"] <= east)
+        ]
+
+    # --- Map base ---
+    center = (
+        [visible["lat"].mean(), visible["lon"].mean()]
+        if not visible.empty else
+        [df["lat"].mean(), df["lon"].mean()]
+    )
+    m = folium.Map(location=center, zoom_start=6, tiles="CartoDB Positron")
+    Draw(export=True, draw_options={'rectangle': True, 'polygon': True}).add_to(m)
+
+    if visible.empty:
+        st.info("No points to show in the current area.")
     else:
-        # Persist last drawn polygon
-        if "draw_shape" not in st.session_state:
-            st.session_state["draw_shape"] = None
+        if render_mode == "Heatmap":
+            vis = downsample(visible, max_points=20000)
+            heat_data = vis[["lat","lon"]].dropna().values.tolist()
+            if heat_data:
+                HeatMap(heat_data, radius=12, blur=18, min_opacity=0.3).add_to(m)
 
-        shape = st.session_state["draw_shape"]
-
-        # Filter by polygon (if any)
-        visible = df.copy()
-        if shape and shape.get("type") == "Polygon":
-            coords = shape["coordinates"][0]
-            lats = [pt[1] for pt in coords]; lons = [pt[0] for pt in coords]
-            south, north = min(lats), max(lats); west, east = min(lons), max(lons)
-            visible = visible[(visible["lat"]>=south)&(visible["lat"]<=north)&(visible["lon"]>=west)&(visible["lon"]<=east)]
-
-        # Center map
-        center = [visible["lat"].mean(), visible["lon"].mean()] if not visible.empty else [df["lat"].mean(), df["lon"].mean()]
-        m = folium.Map(location=center, zoom_start=7, tiles="CartoDB Positron")
-        Draw(export=True, draw_options={'rectangle': True, 'polygon': True}).add_to(m)
-
-        if not visible.empty:
-            hot = train_hotspots_simple(visible)
-            if hot is None or hot["cluster"].nunique() <= 1:
-                st.warning("Not enough spatial data to detect hotspots.")
+        elif render_mode == "Clustered":
+            with st.spinner("Computing clusters… (first run only)"):
+                df_clustered = precompute_clusters_global(df, eps=0.1, min_samples=10)
+            vis = df_clustered.loc[visible.index]
+            vis = vis[(vis["cluster"] != -1)]
+            pts = vis[["lat","lon"]].dropna().values.tolist()
+            if pts:
+                FastMarkerCluster(pts).add_to(m)
             else:
-                layer = MarkerCluster().add_to(m)
-                for _, r in hot.iterrows():
-                    if r["cluster"] != -1:
-                        folium.CircleMarker(
-                            location=[r["lat"], r["lon"]],
-                            radius=4,
-                            color="crimson",
-                            fill=True,
-                            fill_opacity=0.5,
-                            popup=str(r.get("animal_group", "")),
-                        ).add_to(layer)
+                st.warning("No dense clusters in this view. Try Heatmap or widen the area.")
 
-        # Render map + capture drawings
-        st_data = st_folium(m, width=900, height=520)
-        if st_data and st_data.get("last_active_drawing"):
-            st.session_state["draw_shape"] = st_data["last_active_drawing"]["geometry"]
-        elif st_data and not st_data.get("last_active_drawing"):
-            if "all_drawings" in st_data and not st_data["all_drawings"]:
-                st.session_state["draw_shape"] = None
+        else:  # --- Markers (fast color circles) + popups ---
+            vis = downsample(visible, max_points=4000)
 
-
-# =========================================================
-# ----------------------- ACTIVITY ------------------------
-# =========================================================
-elif mode == "Activity":
-    st.subheader(f"Activity Analysis — {sel_group}")
-    group_df = df[df["animal_group"] == sel_group] if sel_group else pd.DataFrame()
-
-    if group_df.empty:
-        st.warning("No data for the selected animal group.")
-        st.stop()
-    if not have_activity_columns(group_df):
-        st.info("Activity view needs ndvi and time (hour+month or datetime). Temperature is optional.")
-        st.stop()
-
-    bundle = train_lgbm(group_df)
-    gmm, gmm_uses_temp = train_gmm(group_df)
-
-    if bundle is None:
-        st.warning("Not enough data to train the predictive model for this group.")
-        st.stop()
-
-    best_m, best_h, grid = predict_grid(bundle, group_df)
-    st.success(f"Best Month: {best_m} • Best Hour: {best_h:02d}:00")
-    st.caption(f"{'LightGBM' if GBM_AVAILABLE else 'HistGBR'} performance — R²: {bundle['r2']:.3f} • RMSE: {bundle['rmse']:.4f}")
-
-    tab1, tab2, tab3 = st.tabs(["24-Hour Clock", "Daily Profile (Model)", "Historical Pattern (GMM)"])
-    with tab1:
-        st.plotly_chart(circular_plot(grid.assign(month=grid["month"]), best_m), use_container_width=True)
-    with tab2:
-        st.plotly_chart(daily_profile_plot(grid.assign(month=grid["month"])), use_container_width=True)
-    with tab3:
-        if gmm:
-            df_gmm = gmm_activity_curve(gmm, best_m, group_df, gmm_uses_temp)
-            fig = px.area(
-                df_gmm, x="hour", y="probability",
-                title="GMM — Historical Activity Distribution",
-                labels={"hour": "Hour of Day", "probability": "Relative Likelihood"},
-                template="plotly_dark"
+            # Which column names your animal label
+            group_col = "group_name" if "group_name" in vis.columns else (
+                "animal_group" if "animal_group" in vis.columns else None
             )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Not enough data to fit the GMM model.")
 
+            # Stable color map for groups currently visible
+            PALETTE = [
+                "#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
+                "#a65628", "#f781bf", "#999999", "#66c2a5", "#8da0cb",
+                "#e78ac3", "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3"
+            ]
+            uniq_groups = (
+                vis[group_col].dropna().astype(str).str.strip().unique().tolist()
+                if group_col else []
+            )
+            color_map = {g: PALETTE[i % len(PALETTE)] for i, g in enumerate(sorted(uniq_groups))}
+
+            cluster = MarkerCluster().add_to(m)
+
+            def fmt_num(x, n=2):
+                try: return f"{float(x):.{n}f}"
+                except: return "N/A"
+
+            for _, r in vis.dropna(subset=["lat", "lon"]).iterrows():
+                animal  = (r.get(group_col) if group_col else "") or ""
+                species = r.get("species", "")
+                dt      = r.get("datetime", "")
+                ndvi    = r.get("ndvi", None)
+                temp    = r.get("temperature_C", None)
+                water   = r.get("dist_to_water_km", None)
+
+                popup_html = f"""
+                <div style="font-size:13px; line-height:1.35;">
+                  <b>Animal:</b> {animal or '—'}<br>
+                  <b>Species:</b> {species or '—'}<br>
+                  <b>Date:</b> {dt or '—'}<br>
+                  <b>NDVI:</b> {fmt_num(ndvi)}<br>
+                  <b>Temp (°C):</b> {fmt_num(temp)}<br>
+                  <b>Dist. to water (km):</b> {fmt_num(water)}
+                </div>
+                """
+
+                col = color_map.get(animal, "#377eb8")
+                folium.CircleMarker(
+                    location=[r["lat"], r["lon"]],
+                    radius=5,
+                    color=col,
+                    fill=True,
+                    fill_color=col,
+                    fill_opacity=0.7,
+                    popup=folium.Popup(popup_html, max_width=280),
+                ).add_to(cluster)
+
+            # Legend (bottom-right)
+            if color_map:
+                legend_items = "".join(
+                    f'<div style="display:flex;align-items:center;margin:2px 0;">'
+                    f'<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{c};margin-right:6px;"></span>'
+                    f'<span style="font-size:12px">{g}</span></div>'
+                    for g, c in sorted(color_map.items())
+                )
+                legend_html = f"""
+                <div style="
+                    position: fixed;
+                    bottom: 20px; right: 20px; z-index: 9999;
+                    background: rgba(255,255,255,.95);
+                    padding: 8px 10px; border: 1px solid rgba(0,0,0,.15);
+                    border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.08);
+                ">
+                    <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Animals</div>
+                    {legend_items}
+                </div>
+                """
+                m.get_root().html.add_child(folium.Element(legend_html))
+
+
+    # --- Render + capture drawings ---
+    st_data = st_folium(m, use_container_width=True, height=520)
+    if st_data and st_data.get("last_active_drawing"):
+        st.session_state["draw_shape"] = st_data["last_active_drawing"]["geometry"]
+    elif st_data and not st_data.get("last_active_drawing"):
+        if "all_drawings" in st_data and not st_data["all_drawings"]:
+            st.session_state["draw_shape"] = None
 
 # =========================================================
 # ------------------------- PLANNER -----------------------
@@ -868,7 +951,6 @@ elif mode == "Planner":
 # =========================================================
 else:
     st.subheader("Model Evaluation for All Animal Groups")
-    st.write(f"Dates: {start_date} → {end_date}")
     st.markdown("---")
 
     total_groups = df["animal_group"].nunique()

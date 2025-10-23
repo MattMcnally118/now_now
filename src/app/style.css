@@ -1,0 +1,163 @@
+/* ---------- Font (Montserrat) ---------- */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+
+/* ---------- Brand tokens ---------- */
+:root{
+  --peach:  #FFBD59;
+  --safari: #C09153;
+  --blue:   #044EFF;
+  --text:   #2F2F2F;
+  --card:   #FFFFFF;
+  --pill:   #FFF4E0;
+  --radius: 16px;
+  --shadow: 0 8px 24px rgba(0,0,0,.06);
+}
+
+/* ---------- Base (no layout changes) ---------- */
+html, body{
+  font-family: 'Montserrat', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: var(--text);
+  background: #FAFAFA;
+}
+h1, h2, h3{ color: var(--blue); font-weight: 700; line-height: 1.2; }
+a{ color: var(--blue); text-decoration: none; }
+a:hover{ text-decoration: underline; }
+
+/* ---------- App header (main pane) ---------- */
+/* App header: logo on left, title centered */
+.app-header{
+  display: grid;
+  grid-template-columns: 96px 1fr 96px; /* left logo, centered title, right spacer */
+  align-items: center;
+  background: linear-gradient(90deg, var(--peach), var(--safari));
+  padding: 16px 20px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+}
+
+/* Big left logo */
+.app-logo-left{
+  width: 78px;
+  height: 78px;
+  object-fit: contain;
+  border-radius: 10px;
+  justify-self: start;   /* pin to left edge */
+}
+
+/* Centered title, independent of the logo */
+.app-title{
+  grid-column: 2;        /* lock to center column */
+  text-align: center;
+  margin: 0;
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1;
+  color: #1f1f1f;        /* switch to #fff if you prefer white on gradient */
+}
+
+/* Right spacer (keeps title truly centered even if we add actions later) */
+.app-header-spacer{
+  grid-column: 3;
+  justify-self: end;
+  height: 1px;           /* just a placeholder */
+}
+
+/* Responsive tweaks */
+@media (max-width: 600px){
+  .app-header{
+    grid-template-columns: 64px 1fr 24px;
+    padding: 12px 14px;
+  }
+  .app-logo-left{ width: 56px; height: 56px; }
+  .app-title{ font-size: 1.6rem; }
+}
+
+/* ---------- Global buttons (main pane) ---------- */
+.stButton > button{
+  background: var(--peach); color:#1f1f1f; border:0; border-radius:12px;
+  padding:.6rem 1rem; font-weight:600; transition: transform .15s, box-shadow .15s;
+}
+.stButton > button:hover{ transform: translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.12); }
+.stButton > button:active{ transform: translateY(0); }
+
+/* Optional safari variant: wrap in <div class="btn-safari"> ... */
+.btn-safari .stButton > button{ background: var(--safari); color:#fff; }
+
+/* ---------- Inputs ---------- */
+.stTextInput > div > div > input,
+.stSelectbox > div > div,
+.stNumberInput input,
+.stDateInput > div > div > input{
+  background:#fff; border:1px solid rgba(0,0,0,.12);
+  border-radius:10px !important; padding:.55rem .7rem; box-shadow:none;
+}
+
+/* ---------- Cards ---------- */
+.card{
+  background: var(--card); border-radius: var(--radius); padding:1rem; margin-bottom:1rem;
+  box-shadow: var(--shadow); border:1px solid rgba(0,0,0,.06);
+}
+
+/* ---------- Sidebar base ---------- */
+[data-testid="stSidebar"]{
+  background: var(--safari) !important;  /* force brown background */
+  border-right: 1px solid rgba(0,0,0,.05);
+}
+[data-testid="stSidebar"] *{ color:#fff !important; }
+
+/* Sidebar brand (logo + name) */
+[data-testid="stSidebar"] .sidebar-brand{
+  display:flex; align-items:center; gap:.6rem; margin:.2rem 0 1rem 0;
+}
+[data-testid="stSidebar"] .sidebar-logo{
+  width:40px; height:40px; object-fit:contain; border-radius:8px;
+}
+[data-testid="stSidebar"] .sidebar-title{
+  font-weight:800; font-size:1.25rem; letter-spacing:.01em; color:#fff;
+}
+
+/* Sidebar nav buttons (no icons for now) */
+[data-testid="stSidebar"] .nav-btn{ margin-bottom:.5rem; }
+[data-testid="stSidebar"] .nav-btn .stButton > button{
+  width:100%; background:transparent; color:#fff; border:1px solid rgba(255,255,255,.55);
+  border-radius:12px; padding:.7rem 1rem; font-weight:800; font-size:1rem;
+  transition: transform .15s, box-shadow .15s, background .15s;
+}
+[data-testid="stSidebar"] .nav-active .stButton > button{
+  background: var(--safari); color:#fff; border-color: var(--safari);
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+[data-testid="stSidebar"] .nav-btn .stButton > button:hover{
+  background: rgba(255,189,89,.18); transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
+[data-testid="stSidebar"] .nav-btn .stButton > button:focus{
+  outline:none; box-shadow:0 0 0 3px rgba(4,78,255,.25);
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce){
+  *{ animation:none !important; transition:none !important; }
+}
+
+/* center utility */
+.center { text-align: center; }
+
+/* Map mode button group */
+.mode-btn .stButton > button{
+  background: transparent;
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: 12px;
+  padding: .6rem 1rem;
+  font-weight: 700;
+}
+.mode-btn .stButton > button:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
+.mode-btn.active .stButton > button{
+  background: var(--peach);
+  color: #1f1f1f;
+  border-color: var(--peach);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
