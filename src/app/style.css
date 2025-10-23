@@ -161,3 +161,41 @@ a:hover{ text-decoration: underline; }
   border-color: var(--peach);
   box-shadow: 0 6px 18px rgba(0,0,0,.12);
 }
+
+/* -------- Activity: centered headers + best cards -------- */
+.center { text-align: center; } /* already present, keep if you have it */
+
+.best-cards {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: .75rem 0 1rem;
+}
+
+.best-card {
+  min-width: 180px;
+  padding: 12px 16px;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+  text-align: center;
+  background: var(--card-bg, #fff);
+}
+
+.best-card.month { background: linear-gradient(180deg,#ffffff,#fff5ee); }
+.best-card.hour  { background: linear-gradient(180deg,#ffffff,#eef7ff); }
+
+.best-card .label {
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: .7;
+}
+
+.best-card .value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  margin-top: 4px;
+}
