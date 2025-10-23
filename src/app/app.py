@@ -164,11 +164,11 @@ df = load_and_normalize(DEFAULT_CSV)
 # ==============================
 # Sidebar navigation
 # ==============================
-MODES = ["Sightings Map", "Activity", "Planner", "Performance"]
+MODES = ["Animal Info", "Sightings Map", "Activity", "Planner"]
 
 if "mode" not in st.session_state:
-    st.session_state["mode"] = "Sightings Map"
-elif st.session_state["mode"] == "Travel":  # migrate old sessions
+    st.session_state["mode"] = "Animal Info"
+elif st.session_state["mode"] == "Travel":     # migrate old sessions
     st.session_state["mode"] = "Sightings Map"
 
 def _set_mode(m: str):
@@ -1030,33 +1030,142 @@ elif mode == "Planner":
     if st.button("Clear plan"):
         st.session_state["proposal"] = None
 
-
-
-
-
 # =========================================================
-# ---------------------- PERFORMANCE ----------------------
+# ---------------------- ANIMAL INFO ----------------------
 # =========================================================
 else:
-    st.subheader("Model Evaluation for All Animal Groups")
+    st.markdown('<h2 class="center" style="margin-bottom:.25rem;">Animal Info</h2>', unsafe_allow_html=True)
     st.markdown("---")
 
-    total_groups = df["animal_group"].nunique()
-    total_rows   = len(df)
-    c1, c2 = st.columns(2)
-    c1.metric("Unique animal groups", total_groups)
-    c2.metric("Total records", total_rows)
+    # ---------- Helpers ----------
+    def detect_group_col(frame):
+        for c in ["animal_group", "group_name", "species", "common_name"]:
+            if c in frame.columns:
+                return c
+        return None
 
-    results = []
-    for grp, sub in df.groupby("animal_group"):
-        if not have_activity_columns(sub) or len(sub) < 100:
-            continue
-        t = train_lgbm(sub)
-        if t is None:
-            continue
-        results.append({"animal_group": grp, "R²": t["r2"], "RMSE": t["rmse"]})
+    # (Keep these in case you reuse later; not used for facts now)
+    def month_from_datetime(series):
+        if "month" in df.columns:
+            try:
+                return series["month"].astype(int).clip(1, 12)
+            except Exception:
+                pass
+        if "datetime" in df.columns:
+            try:
+                return pd.to_datetime(df["datetime"], errors="coerce").dt.month
+            except Exception:
+                pass
+        return None
 
-    if results:
-        st.dataframe(pd.DataFrame(results).sort_values("R²", ascending=False), use_container_width=True)
+    def hour_from_datetime(series):
+        if "hour" in df.columns:
+            try:
+                return series["hour"].astype(int).clip(0, 23)
+            except Exception:
+                pass
+        if "datetime" in df.columns:
+            try:
+                return pd.to_datetime(df["datetime"], errors="coerce").dt.hour
+            except Exception:
+                pass
+        return None
+
+    # --- image helpers (assets/<slug>.jpg|.jpeg|.png|.webp) -> data URL ---
+    ASSETS_DIR = Path(__file__).parent / "assets"
+
+    def _slug_candidates(name: str) -> list[str]:
+        base = name.strip()
+        cands = [
+            base,
+            base.lower(),
+            base.replace(" ", ""),
+            base.lower().replace(" ", "_"),
+            base.lower().replace(" ", "-"),
+        ]
+        seen, out = set(), []
+        for c in cands:
+            if c not in seen:
+                seen.add(c); out.append(c)
+        return out
+
+    def image_src_for(name: str) -> Optional[str]:
+        if not ASSETS_DIR.exists():
+            return None
+        for stem in _slug_candidates(name):
+            for ext in (".jpg", ".jpeg", ".png", ".webp"):
+                p = ASSETS_DIR / f"{stem}{ext}"
+                if p.exists():
+                    mime = mimetypes.guess_type(p.name)[0] or "image/jpeg"
+                    b64 = base64.b64encode(p.read_bytes()).decode()
+                    return f"data:{mime};base64,{b64}"
+        return None
+
+    def summarize_group(name, sub):
+        """Blurb + concise facts (NO peak month/hour/seen-year-round)."""
+        n = len(sub)
+        facts = [f"Records: {n:,}"]
+
+        # Geography footprint (rough span → km-ish heuristic)
+        if {"lat", "lon"}.issubset(sub.columns):
+            try:
+                lat_span = float(sub["lat"].max() - sub["lat"].min())
+                lon_span = float(sub["lon"].max() - sub["lon"].min())
+                approx_km = int((lat_span + lon_span) * 55)
+                if approx_km > 0:
+                    facts.append(f"Range span (approx): ~{approx_km} km")
+            except Exception:
+                pass
+
+        # Environment (compact)
+        if "ndvi" in sub.columns and sub["ndvi"].notna().any():
+            facts.append(f"Median NDVI: {float(sub['ndvi'].median()):.2f}")
+        if "temperature_C" in sub.columns and sub["temperature_C"].notna().any():
+            facts.append(f"Median temp: {float(sub['temperature_C'].median()):.1f}°C")
+        if "dist_to_water_km" in sub.columns and sub["dist_to_water_km"].notna().any():
+            facts.append(f"Median dist. to water: {float(sub['dist_to_water_km'].median()):.1f} km")
+
+        blurb = f"{name}: quick intel from historical sightings."
+        return blurb, facts[:5]
+
+    # ---------- Build animal list from df ----------
+    group_col = next((c for c in ["animal_group","group_name","species","common_name"] if c in df.columns), None)
+    if not group_col or df[group_col].dropna().empty:
+        st.info("No animal groups found in this dataset.")
     else:
-        st.info("No animal groups with sufficient activity data to evaluate.")
+        groups = sorted(df[group_col].dropna().astype(str).unique())
+
+        animals = []
+        for g in groups:
+            sub = df[df[group_col].astype(str) == g]
+            blurb, facts = summarize_group(g, sub)
+            img_src = image_src_for(g)  # data URL or None
+            animals.append({"name": g, "blurb": blurb, "facts": facts, "img": img_src})
+
+        # ---------- Render horizontal cards (no search) ----------
+        rows = ['<div class="scroll-row">']  # IMPORTANT: no leading spaces
+        for an in animals:
+            name  = an["name"]
+            blurb = an.get("blurb", "")
+            facts = an.get("facts", [])
+            img   = an.get("img")
+
+            tags_html = "".join(f'<span class="tag">{f}</span>' for f in facts)
+            # image block on top (fallback placeholder if missing)
+            if img:
+                img_block = f'<img class="card-img" src="{img}" alt="{name}"/>'
+            else:
+                img_block = '<div class="card-img placeholder"></div>'
+
+            rows.append(
+                '<div class="card">'
+                f'{img_block}'
+                '<div class="card-body">'
+                f'<h3 class="card-title">{name}</h3>'
+                f'<p class="card-blurb">{blurb}</p>'
+                f'<div class="tags">{tags_html}</div>'
+                '</div>'
+                '</div>'
+            )
+        rows.append('</div>')
+        st.markdown("".join(rows), unsafe_allow_html=True)
