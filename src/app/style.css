@@ -11,43 +11,53 @@
   --pill:   #FFF4E0;
   --radius: 16px;
   --shadow: 0 8px 24px rgba(0,0,0,.06);
+  --page:  #FFFAF3;
+  --shadow-sm: 0 3px 10px rgba(0,0,0,.10);
+  --shadow-md: 0 6px 18px rgba(0,0,0,.14);
+  --shadow-lg: 0 12px 28px rgba(0,0,0,.18);
+  --ring-peach: 0 0 0 3px rgba(255,189,89,.28);
 }
 
 /* ---------- Base ---------- */
 html, body{
   font-family: 'Montserrat', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--text);
-  background: #FAFAFA;
+  background: var(--page);
 }
 a{ color: var(--blue); text-decoration: none; }
 a:hover{ text-decoration: underline; }
 .center { text-align: center; }
 
-/* ---------- App header (main pane) ---------- */
+/* APP HEADER — Soft Diagonal Accent */
 .app-header{
-  display: grid;
-  grid-template-columns: 96px 1fr 96px; /* left logo, centered title, right spacer */
-  align-items: center;
-  background: linear-gradient(90deg, var(--peach), var(--safari));
-  padding: 16px 20px;
-  border-radius: 14px;
-  margin-bottom: 20px;
+  display:grid;
+  grid-template-columns: 96px 1fr 96px;
+  align-items:center;
+
+  background:
+    conic-gradient(from 225deg at 85% 20%,
+      rgba(255,189,89,.18) 0 25%,
+      rgba(192,145,83,.14) 25% 35%,
+      transparent 35% 100%),
+    #C09153;
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius:14px;
+  padding:16px 20px;
+  margin-bottom:20px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.08);
 }
+
+.app-title{
+  grid-column:2; text-align:center; margin:0;
+  font-weight:800; font-size:2rem; line-height:1.05; color:#1f1f1f;
+}
+
 .app-logo-left{
   width: 78px;
   height: 78px;
   object-fit: contain;
   border-radius: 10px;
   justify-self: start;
-}
-.app-title{
-  grid-column: 2;
-  text-align: center;
-  margin: 0;
-  font-weight: 700;
-  font-size: 2rem;
-  line-height: 1;
-  color: #1f1f1f; /* swap to #fff if you prefer white on the gradient */
 }
 .app-header-spacer{ grid-column: 3; justify-self: end; height: 1px; }
 
@@ -67,32 +77,64 @@ a:hover{ text-decoration: underline; }
   border:0;
   border-radius:12px;
   padding:.6rem 1rem;
-  font-weight:600;
-  transition: transform .15s, box-shadow .15s;
+  font-weight:700;
+  box-shadow: var(--shadow-md);
+  transform: translateY(0);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
 .stButton > button:hover{
   transform: translateY(-2px);
-  box-shadow:0 6px 18px rgba(0,0,0,.12);
+  box-shadow: var(--shadow-lg);
+  filter: brightness(.98);
 }
-.stButton > button:active{ transform: translateY(0); }
+.stButton > button:active{
+  transform: translateY(0);
+  box-shadow: var(--shadow-md);
+}
+.stButton > button:focus{
+  outline: none !important;
+  box-shadow: var(--shadow-lg), var(--ring-peach) !important;
+}
 
-/* Optional safari variant: wrap in <div class="btn-safari"> ... */
-.btn-safari .stButton > button{
-  background: var(--safari);
-  color:#fff;
+/* Main content buttons (override Streamlit primary/secondary) */
+[data-testid="stAppViewContainer"] .stButton > button,
+[data-testid="stAppViewContainer"] .stDownloadButton > button {
+  background: var(--peach) !important;
+  color: #1f1f1f !important;
+  border: 1px solid var(--peach) !important;
+  box-shadow: var(--shadow-sm);
 }
+[data-testid="stAppViewContainer"] .stButton > button:hover,
+[data-testid="stAppViewContainer"] .stDownloadButton > button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+[data-testid="stAppViewContainer"] .stButton > button:active,
+[data-testid="stAppViewContainer"] .stDownloadButton > button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
 
 /* ---------- Inputs ---------- */
+/* Resting state */
 .stTextInput > div > div > input,
 .stSelectbox > div > div,
 .stNumberInput input,
 .stDateInput > div > div > input{
-  background:#fff;
-  border:1px solid rgba(0,0,0,.12);
-  border-radius:10px !important;
-  padding:.55rem .7rem;
-  box-shadow:none;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,.04);
 }
+
+/* Focus */
+.stTextInput:focus-within input,
+.stSelectbox:focus-within > div>div,
+.stNumberInput:focus-within input,
+.stDateInput:focus-within input{
+  outline: none;
+  border-color: var(--peach) !important;
+  box-shadow: var(--ring-peach) !important;
+}
+
 
 /* ---------- Cards ---------- */
 .card{
@@ -102,6 +144,23 @@ a:hover{ text-decoration: underline; }
   margin-bottom:1rem;
   box-shadow: var(--shadow);
   border:1px solid rgba(0,0,0,.06);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.card:hover{
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(0,0,0,.08);
+}
+
+.blurb-list{
+  margin: 0;
+  padding-left: 1.1rem; /* small indent */
+}
+.blurb-list li{
+  margin: 2px 0;
+  line-height: 1.4;
+  font-size: 14px;
+  color: #444;
 }
 
 /* ---------- Sidebar ---------- */
@@ -111,19 +170,47 @@ a:hover{ text-decoration: underline; }
 }
 
 /* Color most text in the sidebar white (NOT buttons) */
-[data-testid="stSidebar"] :where(p,span,li,div, label, h1,h2,h3,h4,h5,h6, a){
+[data-testid="stSidebar"] :where(p,span,li,div,label,h1,h2,h3,h4,h5,h6,a){
   color:#fff !important;
 }
 
-/* Sidebar brand */
+/* Sidebar brand (logo + title + desc) */
 [data-testid="stSidebar"] .sidebar-brand{
   display:flex; align-items:center; gap:.6rem; margin:.2rem 0 1rem 0;
 }
 [data-testid="stSidebar"] .sidebar-logo{
   width:40px; height:40px; object-fit:contain; border-radius:8px;
 }
+[data-testid="stSidebar"] .sidebar-brand-text{
+  display:flex; flex-direction:column; gap:2px;
+}
+
+/* Title: bigger, off-white with peach underline */
 [data-testid="stSidebar"] .sidebar-title{
-  font-weight:800; font-size:1.25rem; letter-spacing:.01em; color:#fff;
+  font-weight:800;
+  font-size:1.35rem;
+  line-height:1.05;
+  color:#FFFAF3;
+  letter-spacing:.01em;
+  margin:0;
+  position:relative;
+  padding-bottom: 10px;
+}
+[data-testid="stSidebar"] .sidebar-title::after{
+  content:"";
+  position:absolute; left:0; bottom:-6px;
+  width:32px; height:3px;
+  background:var(--peach);
+  border-radius:2px;
+}
+
+/* Description: smaller */
+[data-testid="stSidebar"] .sidebar-desc{
+  margin-top: 10px;
+  font-style: italic;
+  font-size: .85rem;
+  color: rgba(255,255,255,.90);
+  line-height: 1.25;
 }
 
 /* Sidebar nav buttons */
@@ -131,34 +218,37 @@ a:hover{ text-decoration: underline; }
 [data-testid="stSidebar"] .nav-btn .stButton > button{
   width:100%;
   background:transparent;
-  color:#fff !important; /* base is white text */
+  color:#fff !important;
   border:1px solid rgba(255,255,255,.55);
   border-radius:12px;
   padding:.7rem 1rem;
   font-weight:800;
   font-size:1rem;
   transition: transform .15s, box-shadow .15s, background .15s;
-}
-[data-testid="stSidebar"] .nav-active .stButton > button{
-  background: var(--peach) !important;   /* active = peach pill */
-  color:#1f1f1f !important;              /* dark text on peach */
-  border-color: var(--peach) !important;
-  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(0);
 }
 [data-testid="stSidebar"] .nav-btn .stButton > button:hover{
   background: rgba(255,189,89,.18);
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  box-shadow: var(--shadow-md);
 }
-/* keep focus consistent with active (no red flash) */
-[data-testid="stSidebar"] .nav-btn .stButton > button:focus,
-[data-testid="stSidebar"] .nav-btn .stButton > button:active{
+[data-testid="stSidebar"] .nav-active .stButton > button{
+  background: var(--peach) !important;
+  color:#1f1f1f !important;
+  border-color: var(--peach) !important;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+/* focus ring on keyboard nav */
+[data-testid="stSidebar"] .nav-btn .stButton > button:focus{
   background: var(--peach) !important;
   color:#1f1f1f !important;
   border-color: var(--peach) !important;
   outline:none;
-  box-shadow: 0 0 0 3px rgba(255,189,89,.25) !important;
+  box-shadow: var(--shadow-md), 0 0 0 3px rgba(255,189,89,.28) !important;
 }
+
 
 /* ---------- Sightings Map: mode buttons ---------- */
 .mode-btn .stButton > button{
@@ -317,7 +407,72 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Fallback gradient when image missing */
-.card-img.placeholder {
+.card-img.placeholder{
   background: linear-gradient(135deg, #f2f2f2, #e3e3e3);
-  height: 56%;
+  aspect-ratio: 16 / 9;   /* match .card-img */
+}
+
+/* make the actual app canvas use your page color */
+[data-testid="stAppViewContainer"]{
+  background: var(--page) !important;
+}
+
+/* the main content wrapper inside the app view */
+[data-testid="stAppViewContainer"] > .main{
+  background: transparent !important;  /* let --page show through */
+}
+
+/* Streamlit’s top header bar (often white) */
+[data-testid="stHeader"]{
+  background: transparent !important;
+}
+
+/* --- Generic: give charts/maps a soft card look --- */
+iframe, .stPlotlyChart, .stDeckGlJsonChart{
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-md) !important;
+}
+iframe:hover, .stPlotlyChart:hover, .stDeckGlJsonChart:hover{
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* --- Expander body: no background, no vertical padding --- */
+[data-testid="stExpander"] > details > div[role="group"]{
+  background: transparent !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Kill Streamlit's element spacing inside the expander */
+[data-testid="stExpander"] .element-container{
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* --- Folium component: no extra bottom gap --- */
+.st-folium{ margin-bottom: 0 !important; }
+.st-folium iframe{ display:block; width:100% !important; border:0 !important; }
+
+/* --- FIRST (search) MAP ONLY — zero ALL wrappers around .map-shell --- */
+/* 1) Remove spacing from the immediate Streamlit container that holds .map-shell */
+.element-container:has(> .map-shell){
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* 2) Kill any default background/padding inside the .map-shell wrapper */
+.map-shell,
+.map-shell > div[data-testid="stVerticalBlock"],
+.map-shell .stMarkdown,
+.map-shell .element-container{
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* 3) Ensure the internal folium map fills the allotted height */
+.map-shell .st-folium iframe,
+.map-shell .folium-map{
+  height: 275px !important; /* match your Python height */
+  border: 0 !important;
 }

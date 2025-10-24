@@ -8,7 +8,9 @@ from typing import Optional
 import streamlit as st
 import pandas as pd
 import numpy as np
-import requests  # geocoding
+import requests
+from calendar import month_name
+
 
 # Maps & viz
 import folium
@@ -43,7 +45,7 @@ def make_gbm():
 
 # --- Page + CSS (robust loader)
 # Page config first
-st.set_page_config(page_title="NowNow WildFinder", layout="wide")
+st.set_page_config(page_title="NowNow Wildlife Finder", layout="wide")
 
 # Load CSS sitting next to app.py (src/app/style.css)
 from pathlib import Path
@@ -59,7 +61,7 @@ else:
 # ==============================
 def _get_header_logo_b64():
     here = Path(__file__).parent / "assets"
-    for name in ["logo-orange.png", "logo-brown.png", "logo-white.png", "logo.png"]:
+    for name in ["logo-no-bg.png","logo-orange.png", "logo-brown.png", "logo-white.png", "logo.png"]:
         p = here / name if here.exists() else Path(name)
         if p.exists():
             return base64.b64encode(p.read_bytes()).decode()
@@ -70,7 +72,7 @@ st.markdown(
     f"""
     <div class="app-header">
         {f'<img class="app-logo-left" src="data:image/png;base64,{header_logo_b64}" alt="logo">' if header_logo_b64 else ''}
-        <h1 class="app-title">NowNow WildFinder</h1>
+        <h1 class="app-title">Now Now Wildlife Finder</h1>
         <div class="app-header-spacer"></div>
     </div>
     """,
@@ -190,12 +192,16 @@ with st.sidebar:
         st.markdown(
             f"""
             <div class="sidebar-brand">
-                <img class="sidebar-logo" src="data:image/png;base64,{b64}" alt="Now Now logo" />
-                <div class="sidebar-title">Now Now</div>
+                {'<img class="sidebar-logo" src="data:image/png;base64,'+b64+'" alt="NowNow logo" />' if b64 else ''}
+                <div class="sidebar-brand-text">
+                    <div class="sidebar-title">NowNow</div>
+                    <div class="sidebar-desc">Plan sightings, explore maps, and build trips</div>
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+
     else:
         st.markdown('<div class="sidebar-brand"><div class="sidebar-title">Now Now</div></div>', unsafe_allow_html=True)
 
@@ -386,7 +392,7 @@ def geocode_place(query: str):
         return None
     url = "https://nominatim.openstreetmap.org/search"
     params = {"q": query.strip(), "format": "json", "limit": 1}
-    headers = {"User-Agent": "NowNowWildFinder/1.0 (Streamlit; user-requested geocode)"}
+    headers = {"User-Agent": "NowNowWildlifeFinder/1.0 (Streamlit; user-requested geocode)"}
     try:
         r = requests.get(url, params=params, headers=headers, timeout=10)
         r.raise_for_status()
@@ -852,13 +858,15 @@ elif mode == "Activity":
             else:
                 best_m, best_h, grid = predict_grid(bundle, group_df)
 
+                best_month_name = month_name[int(best_m)] if 1 <= int(best_m) <= 12 else str(best_m)
+
                 # best cards (CSS styled)
                 st.markdown(
                     f"""
                     <div class="best-cards">
                         <div class="best-card month">
                             <div class="label">Best Month</div>
-                            <div class="value">{best_m}</div>
+                            <div class="value">{best_month_name}</div>
                         </div>
                         <div class="best-card hour">
                             <div class="label">Best Hour</div>
@@ -901,47 +909,111 @@ elif mode == "Activity":
 elif mode == "Planner":
     st.subheader("Trip Planner")
 
-    # --- Geocoder / starting point (single source of truth for lat/lon) ---
+    # Seed starting point once (single source of truth for lat/lon)
     if "lat0" not in st.session_state or "lon0" not in st.session_state:
         st.session_state["lat0"] = float(df["lat"].mean()) if not df.empty else 0.0
         st.session_state["lon0"] = float(df["lon"].mean()) if not df.empty else 0.0
 
+    # --- Find your starting point ---
     with st.expander("Find your starting point", expanded=True):
-        place_query = st.text_input("Search for a place (city, park, coordinates, etc.)",
-                                    placeholder="e.g., Kruger National Park")
-        if st.button("Find on map"):
-            loc = geocode_place(place_query)
-            if loc is None:
-                st.warning("Couldn’t find that place. Check spelling or try a more specific name.")
-            else:
-                st.session_state["lat0"], st.session_state["lon0"] = loc
-                st.success(f"Found: {st.session_state['lat0']:.5f}, {st.session_state['lon0']:.5f}")
+        place_query = st.text_input(
+            "Search for a place (city, park, coordinates, etc.)",
+            placeholder="e.g., Kruger National Park"
+        )
 
-        m0 = folium.Map(location=[st.session_state["lat0"], st.session_state["lon0"]],
-                        zoom_start=6, tiles="CartoDB Positron")
-        folium.Marker([st.session_state["lat0"], st.session_state["lon0"]],
-                      tooltip="Your location", icon=folium.Icon(color="blue")).add_to(m0)
-        st_folium(m0, width=800, height=250)
+        # Center the button on the page without stretching it
+        left, mid, right = st.columns([1, 0.6, 1])
+        with mid:
+            if st.button("Find on map", key="find_start_btn"):
+                loc = geocode_place(place_query)
+                if loc is None:
+                    st.warning("Couldn’t find that place. Check spelling or try a more specific name.")
+                else:
+                    st.session_state["lat0"], st.session_state["lon0"] = loc
+                    st.success(f"Found: {st.session_state['lat0']:.5f}, {st.session_state['lon0']:.5f}")
 
-    # ---- Planner form (submit computes) ----
+        # Map (full width, fixed height)
+        m0 = folium.Map(
+            location=[st.session_state["lat0"], st.session_state["lon0"]],
+            zoom_start=6, tiles="CartoDB Positron"
+        )
+        folium.Marker(
+            [st.session_state["lat0"], st.session_state["lon0"]],
+            tooltip="Your location", icon=folium.Icon(color="blue")
+        ).add_to(m0)
+        st.markdown('<div class="map-shell">', unsafe_allow_html=True)
+        st_folium(m0, use_container_width=True, height=275)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# --- Animal hotspot icon helpers (ONLY use *-icon.* files)
+    def _icon_stems(name: str) -> list[str]:
+        """Return candidate stems that all end with '-icon'."""
+        base = (name or "").strip()
+        low  = base.lower()
+        # normalize spaces to hyphens/underscores, then append '-icon'
+        variants = [
+            low,
+            low.replace(" ", "-"),
+            low.replace(" ", "_"),
+            low.replace(" ", ""),
+        ]
+        # ensure each ends with '-icon'
+        stems = []
+        seen = set()
+        for v in variants:
+            s = f"{v}-icon" if not v.endswith("-icon") else v
+            if s and s not in seen:
+                seen.add(s); stems.append(s)
+        return stems
+
+    def _icon_data_url(animal_name: str) -> Optional[str]:
+        """Look for assets/<normalized>-icon.(png|webp), prefer PNG."""
+        assets = Path(__file__).parent / "assets"
+        if not assets.exists():
+            return None
+        exts_preference = (".png", ".webp")  # don't match .jpg/.jpeg to avoid photo picks
+        for stem in _icon_stems(animal_name):
+            for ext in exts_preference:
+                p = assets / f"{stem}{ext}"
+                if p.exists():
+                    mime = mimetypes.guess_type(p.name)[0] or "image/png"
+                    b64  = base64.b64encode(p.read_bytes()).decode()
+                    return f"data:{mime};base64,{b64}"
+        return None
+
+    @st.cache_data(ttl=86400, show_spinner=False)
+    def reverse_geocode(lat: float, lon: float) -> Optional[str]:
+        """Reverse geocode (lat, lon) -> display address using Nominatim."""
+        url = "https://nominatim.openstreetmap.org/reverse"
+        params = {"lat": lat, "lon": lon, "format": "json", "zoom": 14}
+        headers = {"User-Agent": "NowNowWildFinder/1.0 (Streamlit; reverse geocode)"}
+        try:
+            r = requests.get(url, params=params, headers=headers, timeout=10)
+            r.raise_for_status()
+            data = r.json()
+            return data.get("display_name")
+        except Exception:
+            return None
+
+
+    # --- Planner form (submit computes) ---
     with st.form("planner_form", clear_on_submit=False):
         st.markdown("### Preferences")
 
-        # No lat/lon inputs here—use geocoder above
+        # Radius + animal selection
         radius_km = st.slider("Travel radius (km)", 5, 500, 100, 5, key="radius_km")
-
         group_list = sorted(df["animal_group"].dropna().unique()) if "animal_group" in df.columns else []
         sel_group_plan = st.selectbox("Animal group you want to see", group_list, key="sel_group_plan")
 
-        weight_temporal = st.slider("Weight: temporal vs spatial", 0, 100, 50, 5,
-                                    help="0 = spatial only, 100 = temporal only") / 100.0
+        # Fixed temporal weight (no slider in UI)
+        weight_temporal = 0.70
 
         # Target date/hour
-        t1, t2 = st.columns(2)
-        with t1:
+        c1, c2 = st.columns(2)
+        with c1:
             target_date = st.date_input("Target date (optional)", key="target_date")
             target_month = int(target_date.month) if target_date else None
-        with t2:
+        with c2:
             hour_mode = st.radio("Hour selection", ["Best hour for that month", "Pick an exact hour"], index=0, key="hour_mode")
             if hour_mode == "Pick an exact hour":
                 target_time = st.time_input("Pick a time", value=pd.to_datetime("06:00").time(), key="target_time")
@@ -949,18 +1021,16 @@ elif mode == "Planner":
             else:
                 target_hour = None
 
-        # Hotspot parameters (keep sliders for tuning)
-        st.markdown("#### Hotspot detection")
-        h1, h2 = st.columns(2)
-        with h1:
-            eps_km = st.slider("Cluster neighborhood (eps, km)", 2, 50, 10, 1,
-                               help="DBSCAN radius in km (haversine metric)")
-        with h2:
-            min_samples = st.slider("Min points per cluster", 5, 50, 10, 1)
+        # Fixed clustering params (hidden from UI)
+        eps_km = 10.0
+        min_samples = 10
 
-        submitted = st.form_submit_button("Suggest a plan")
+        # Center the submit button
+        b1, b2, b3 = st.columns([1, 0.6, 1])
+        with b2:
+            submitted = st.form_submit_button("Suggest a plan", use_container_width=False)
 
-    # Persist & compute
+    # Persist & compute proposal
     if "proposal" not in st.session_state:
         st.session_state["proposal"] = None
 
@@ -977,7 +1047,7 @@ elif mode == "Planner":
             min_samples=min_samples,
         )
 
-    # Render proposal if present
+# --- Render proposal ---
     proposal = st.session_state.get("proposal")
     if proposal:
         st.markdown("### Recommendation")
@@ -987,48 +1057,79 @@ elif mode == "Planner":
             lat_rec, lon_rec = proposal["where"]
             when = proposal["when"]
             like = proposal["likelihood"]
-            when_text = f"Month {when[0]}, around {when[1]:02d}:00" if when else "N/A"
+
+            # Pretty month name (e.g., January)
+            if when:
+                month_name = month_name[int(when[0])]
+                when_text = f"{month_name}, around {when[1]:02d}:00"
+            else:
+                when_text = "N/A"
+
+            # Reverse geocode for a readable address (fallback to coords)
+            address = reverse_geocode(lat_rec, lon_rec)
+            where_text = address or f"{lat_rec:.4f}, {lon_rec:.4f}"
 
             st.success(
-                f"**Go to:** {lat_rec:.4f}, {lon_rec:.4f}  \n"
+                f"**Go to:** {where_text}  \n"
                 f"**When:** {when_text}  \n"
                 f"**Likelihood (approx):** {like}%"
             )
 
-            # Map context
-            m = folium.Map(location=[st.session_state["lat0"], st.session_state["lon0"]],
-                        zoom_start=7, tiles="CartoDB Positron")
-            folium.Marker([st.session_state["lat0"], st.session_state["lon0"]],
-                        tooltip="Your location", icon=folium.Icon(color="blue")).add_to(m)
-            folium.Circle([st.session_state["lat0"], st.session_state["lon0"]],
-                        radius=st.session_state["radius_km"]*1000, color="blue", fill=False).add_to(m)
-            folium.Marker([lat_rec, lon_rec],
-                        tooltip=f"Suggested hotspot: {st.session_state.get('sel_group_plan','')}",
-                        icon=folium.Icon(color="red")).add_to(m)
+            # Context map showing current point, radius, and hotspot
+            m = folium.Map(
+                location=[st.session_state["lat0"], st.session_state["lon0"]],
+                zoom_start=7, tiles="CartoDB Positron"
+            )
+            folium.Marker(
+                [st.session_state["lat0"], st.session_state["lon0"]],
+                tooltip="Your location", icon=folium.Icon(color="blue")
+            ).add_to(m)
+            folium.Circle(
+                [st.session_state["lat0"], st.session_state["lon0"]],
+                radius=st.session_state["radius_km"] * 1000, color="blue", fill=False
+            ).add_to(m)
 
-            nearby = filter_within_radius(df[df["animal_group"] == st.session_state.get("sel_group_plan","")],
-                                        st.session_state["lat0"], st.session_state["lon0"],
-                                        st.session_state["radius_km"])
+            # Hotspot marker with animal-specific icon (fallback to red marker)
+            sel_animal = st.session_state.get("sel_group_plan", "")
+            icon_url = _icon_data_url(sel_animal)
+            if icon_url:
+                folium.Marker(
+                    [lat_rec, lon_rec],
+                    tooltip=f"Suggested hotspot: {sel_animal}",
+                    icon=folium.features.CustomIcon(
+                        icon_image=icon_url,
+                        icon_size=(40, 40),
+                        icon_anchor=(20, 38)
+                    )
+                ).add_to(m)
+            else:
+                folium.Marker(
+                    [lat_rec, lon_rec],
+                    tooltip=f"Suggested hotspot: {sel_animal}",
+                    icon=folium.Icon(color="red")
+                ).add_to(m)
+
+            # Nearby sightings for context
+            nearby = filter_within_radius(
+                df[df["animal_group"] == st.session_state.get("sel_group_plan","")],
+                st.session_state["lat0"], st.session_state["lon0"],
+                st.session_state["radius_km"]
+            )
             layer = MarkerCluster().add_to(m)
             for _, r in nearby.iterrows():
-                folium.CircleMarker([r["lat"], r["lon"]], radius=4, color="crimson",
-                                    fill=True, fill_opacity=0.5).add_to(layer)
+                folium.CircleMarker(
+                    [r["lat"], r["lon"]], radius=4, color="crimson",
+                    fill=True, fill_opacity=0.5
+                ).add_to(layer)
 
-            st_folium(m, width=900, height=520)
+            st_folium(m, use_container_width=True, height=300)
+        # Reset proposal (centered button)
+        cb1, cb2, cb3 = st.columns([1, 0.51, 1])
+        with cb2:
+            if st.button("Clear plan", key="clear_btn"):
+                st.session_state["proposal"] = None
 
-        # Debug panel to understand the % breakdown
-        with st.expander("How this % was computed", expanded=False):
-            st.write(f"Temporal favorability: **{proposal['temporal_favor']:.2f}** (0–1)")
-            st.write(f"Spatial density: **{proposal['spatial_favor']:.2f}** (0–1)")
-            st.write(f"Weight (temporal): **{int(proposal['weight_temporal']*100)}%**")
-            st.write(f"Hotspot: eps≈**{proposal['eps_km']:.1f} km**, min_samples=**{proposal['min_samples']}**")
-            st.caption("Likelihood = 100 × [ weight*temporal + (1-weight)*spatial ]")
 
-        if proposal["notes"]:
-            st.caption(" • " + "\n • ".join(proposal["notes"]))
-
-    if st.button("Clear plan"):
-        st.session_state["proposal"] = None
 
 # =========================================================
 # ---------------------- ANIMAL INFO ----------------------
@@ -1086,7 +1187,8 @@ else:
         seen, out = set(), []
         for c in cands:
             if c not in seen:
-                seen.add(c); out.append(c)
+                seen.add(c)
+                out.append(c)
         return out
 
     def image_src_for(name: str) -> Optional[str]:
@@ -1101,35 +1203,80 @@ else:
                     return f"data:{mime};base64,{b64}"
         return None
 
-    def summarize_group(name, sub):
-        """Blurb + concise facts (NO peak month/hour/seen-year-round)."""
-        n = len(sub)
-        facts = [f"Records: {n:,}"]
+    # --- Animal Info blurbs for your exact groups ---
+    ANIMAL_KNOWLEDGE = {
+        "lion": {
+            "habitat": "Open savanna and light woodland; often near water in dry periods.",
+            "diet": "Carnivore—antelope, zebra, buffalo; will scavenge.",
+            "note": "Social cats in prides; most hunting at dusk/dawn."
+        },
+        "warthog": {
+            "habitat": "Open savanna and short-grass plains with access to burrows.",
+            "diet": "Grazer/rooter—short grasses, rhizomes; kneels to feed.",
+            "note": "Day-active; uses burrows for refuge at night and in heat."
+        },
+        "hippopotamus": {
+            "habitat": "Rivers, lakes and backwaters with grassy banks.",
+            "diet": "Grazer—night feeding on short, lush grasses away from water.",
+            "note": "Rests in water by day; well-worn ‘hippo trails’ to feeding lawns."
+        },
+        "elephant": {
+            "habitat": "Savanna, woodland and riparian corridors.",
+            "diet": "Grazer/browser—grasses, bark, pods; drinks daily when possible.",
+            "note": "Large daily movements; often concentrates near permanent water."
+        },
+        "zebra": {
+            "habitat": "Grasslands and open savannas; edges of woodland.",
+            "diet": "Grazer—short to mid-height grasses; regular water visits.",
+            "note": "Herd-forming; often mixes with wildebeest for shared vigilance."
+        },
+        "giraffe": {
+            "habitat": "Open woodland and savanna with tall acacia/combretum.",
+            "diet": "Browser—favours acacia and other thorny trees; high canopy.",
+            "note": "Active mornings/evenings; long vigilance near open water."
+        },
+        "cheetah": {
+            "habitat": "Open grasslands and semi-arid savannas.",
+            "diet": "Carnivore—hunts small/mid-sized antelope by daytime sprint.",
+            "note": "Seeks open sight lines and low cover; avoids dense thickets."
+        },
+    }
 
-        # Geography footprint (rough span → km-ish heuristic)
+    def _make_bullets(name: str) -> list[str]:
+        """Return 3 short bullet points: habitat, diet, behavior (no name prefix)."""
+        info = ANIMAL_KNOWLEDGE.get(name.strip().lower())
+        if info:
+            return [
+                f"Habitat: {info['habitat']}",
+                f"Diet: {info['diet']}",
+                f"Notes: {info['note']}",
+            ]
+        # Fallback bullets if not found
+        return [
+            "Habitat: Savanna and mixed woodland.",
+            "Diet: Varies seasonally; often near greener vegetation.",
+            "Notes: Sightings cluster near water during dry periods.",
+        ]
+
+    def summarize_group(name, sub):
+        """Return (bullets, facts) where facts = Records + Range span."""
+        facts = [f"Records: {len(sub):,}"]
+
         if {"lat", "lon"}.issubset(sub.columns):
             try:
                 lat_span = float(sub["lat"].max() - sub["lat"].min())
                 lon_span = float(sub["lon"].max() - sub["lon"].min())
-                approx_km = int((lat_span + lon_span) * 55)
+                approx_km = int((lat_span + lon_span) * 55)  # simple span heuristic
                 if approx_km > 0:
                     facts.append(f"Range span (approx): ~{approx_km} km")
             except Exception:
                 pass
 
-        # Environment (compact)
-        if "ndvi" in sub.columns and sub["ndvi"].notna().any():
-            facts.append(f"Median NDVI: {float(sub['ndvi'].median()):.2f}")
-        if "temperature_C" in sub.columns and sub["temperature_C"].notna().any():
-            facts.append(f"Median temp: {float(sub['temperature_C'].median()):.1f}°C")
-        if "dist_to_water_km" in sub.columns and sub["dist_to_water_km"].notna().any():
-            facts.append(f"Median dist. to water: {float(sub['dist_to_water_km'].median()):.1f} km")
-
-        blurb = f"{name}: quick intel from historical sightings."
-        return blurb, facts[:5]
+        bullets = _make_bullets(name)
+        return bullets, facts[:2]
 
     # ---------- Build animal list from df ----------
-    group_col = next((c for c in ["animal_group","group_name","species","common_name"] if c in df.columns), None)
+    group_col = next((c for c in ["animal_group", "group_name", "species", "common_name"] if c in df.columns), None)
     if not group_col or df[group_col].dropna().empty:
         st.info("No animal groups found in this dataset.")
     else:
@@ -1145,10 +1292,10 @@ else:
         # ---------- Render horizontal cards (no search) ----------
         rows = ['<div class="scroll-row">']  # IMPORTANT: no leading spaces
         for an in animals:
-            name  = an["name"]
-            blurb = an.get("blurb", "")
+            name = an["name"]
+            bullets = an.get("blurb", [])
             facts = an.get("facts", [])
-            img   = an.get("img")
+            img = an.get("img")
 
             tags_html = "".join(f'<span class="tag">{f}</span>' for f in facts)
             # image block on top (fallback placeholder if missing)
@@ -1157,12 +1304,14 @@ else:
             else:
                 img_block = '<div class="card-img placeholder"></div>'
 
+            blurb_html = "<ul class='blurb-list'>" + "".join(f"<li>{b}</li>" for b in bullets) + "</ul>"
+
             rows.append(
                 '<div class="card">'
                 f'{img_block}'
                 '<div class="card-body">'
                 f'<h3 class="card-title">{name}</h3>'
-                f'<p class="card-blurb">{blurb}</p>'
+                f'{blurb_html}'
                 f'<div class="tags">{tags_html}</div>'
                 '</div>'
                 '</div>'
