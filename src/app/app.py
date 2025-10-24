@@ -930,7 +930,6 @@ elif mode == "Planner":
                     st.warning("Couldn’t find that place. Check spelling or try a more specific name.")
                 else:
                     st.session_state["lat0"], st.session_state["lon0"] = loc
-                    st.success(f"Found: {st.session_state['lat0']:.5f}, {st.session_state['lon0']:.5f}")
 
         # Map (full width, fixed height)
         m0 = folium.Map(

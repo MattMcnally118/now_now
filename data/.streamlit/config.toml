@@ -1,0 +1,7 @@
+[theme]
+base = "light"
+primaryColor = "#FFBD59"            # peach
+secondaryBackgroundColor = "#F6F6F6"
+backgroundColor = "#FFFFFF"
+textColor = "#1f1f1f"
+font = "sans serif"
